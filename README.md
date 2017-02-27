@@ -1,29 +1,72 @@
-# WARNING
-
-I'll be rebasing this lots, so if you use it while this message is still
-here, it will probably break.
+[buildroot-list-defconfigs]: https://github.com/csmart/ipa-buildroot/raw/master/doc/img/buildroot-list-defconfigs.png "Listing available Buildroot configs, showing IPA"
+[buildroot-menuconfig]: https://github.com/csmart/ipa-buildroot/raw/master/doc/img/buildroot-menuconfig.png "The welcome window of Buildroot menuconfig"
+[buildroot-menuconfig-password]: https://github.com/csmart/ipa-buildroot/raw/master/doc/img/buildroot-menuconfig-password.png "A salted, sha256 hashed password for root"
+[buildroot-menuconfig-readme]: https://github.com/csmart/ipa-buildroot/raw/master/doc/img/buildroot-menuconfig-readme.png "This shows how to navigate and use Buildroot menuconfig"
+[buildroot-menuconfig-search]: https://github.com/csmart/ipa-buildroot/raw/master/doc/img/buildroot-menuconfig-search.png "Search and navigate to options"
 
 # OpenStack Ironic Python Agent
 
-This is a [Buildroot](https://buildroot.org) based Ironic Python Agent
-for OpenStack experiment.
+This is an experiment using [Buildroot](https://buildroot.org) to create a
+small, custom Ironic Python Agent image for OpenStack.
 
-This document assumes you are running a Linux distribution (and more
-specifically, probably Fedora).
+Feedback is most welcome!
 
-## How the build works
+* [How the build works](#how-the-build-works)
+   * [Directory structure](#directory-structure)
+* [Getting Buildroot](#getting-buildroot)
+   * [Git clone](#git-clone)
+* [Build dependencies](#build-dependencies)
+   * [Fedora](#fedora)
+   * [Ubuntu](#ubuntu)
+* [Building the image](#building-the-image)
+   * [Step 1 - Exporting variables](#step-1---exporting-variables)
+   * [Step 2 - Preparing the output directory](#step-2---preparing-the-output-directory)
+   * [Step 3 - Loading the Buildroot configuration](#step-3---loading-the-buildroot-configuration)
+   * [Step 4 - Making changes to Buildroot configuration](#step-4---making-changes-to-buildroot-configuration)
+   * [Step 5 - Building the image](#step-5---building-the-image)
+* [Testing the image](#testing-the-image)
+* [Making changes](#making-changes)
+   * [Making changes to Buildroot](#making-changes-to-buildroot)
+      * [Setting the IPA version](#setting-the-ipa-version)
+      * [Adding users](#adding-users)
+      * [Setting root password](#setting-root-password)
+         * [Using a hashed password](#using-a-hashed-password)
+      * [Using filesystem overlays](#using-filesystem-overlays)
+      * [Adding SSH keys](#adding-ssh-keys)
+   * [Making changes to Busybox](#making-changes-to-busybox)
+   * [Making changes to the Linux kernel](#making-changes-to-the-linux-kernel)
+* [Rebuilding](#rebuilding)
+* [Saving changes](#saving-changes)
+
+# How the build works
 
 Buildroot is a popular open source tool for building embedded Linux
 systems. It supports many popular (and generic) platforms, however it
 can also be extended to support third party platforms.
 
 We will track a stable version of Buildroot, and create an extra set
-of configs to support our own third party platforms.
+of configs to support our own platform.
 
-It's then a matter of telling Buildroot where these extra configs are
-so that we can build our own Ironic Python Agent images.
+Then we will simply tell Buildroot where these extra configs are so
+that we can build our own Ironic Python Agent images.
 
-## Getting Buildroot
+## Directory structure
+
+Inside this main _ipa-buildroot_ repository will be directories which
+are used to build your images.
+
+| Directory | Description |
+| --- | --- |
+| buildroot | Upstream Buildroot source code Git submodule |
+| buildroot-ipa | Ironic Python Agent image configurations for Buildroot |
+| ccache | Directory for storing ccache files to speed up subsequent builds |
+| dl | Cache directory for downloaded source code tarballs |
+| doc | Files for documentation, including screenshots |
+| output | Output directory for build |
+
+We will export variables later to help use these.
+
+# Getting Buildroot
 
 This Git repository (_ipa-buildroot_) contains our configuration files
 for building the IPA image (in the _buildroot-ipa_ subdirectory).
@@ -33,52 +76,32 @@ upstream Buildroot Git repository for us to build against (in the
 _buildroot_ subdirectory).
 
 We shouldn't modify anything in the upstream Buildroot repository, but
-rather put any changes in our own configuration space.
+rather put any changes in our own configuration space under
+_buildroot-ipa_.
 
-### Git clone
+## Git clone
 
-Clone the ipa-buildroot repo wherever you like (for example,
-~/ipa-buildroot/ which we will use below).
-
-_Substitute the directory as appropriate._
-
-When cloning the ipa-buildroot repository, simply clone with the added
-_--recursive_ option, to pull in the upstream Buildroot repo.
+Clone this ipa-buildroot repo into your home directory, adding the
+_--recursive_ option to also pull in the upstream Buildroot Git repo.
 
 	cd ~
 	git clone --recursive https://github.com/csmart/ipa-buildroot
 
 Alternatively, if you have already cloned this ipa-buildroot repository
-on its own, you can initialise and clone the submodules manually.
+on its own, you can pull in the upstream Buildroot Git submodule manually.
 
 	cd ~/ipa-buildroot/
 	git submodule init
 	git submodule update
 
-Now you should have both of the repos required to build an image!
+Now you should have both of the Git repos required to build an image!
 
-### Directory structure
+# Build dependencies
 
-Inside this main ipa-buildroot repository will be four directories which
-are used to build your images.
+For additional details on build dependencies, see the [relevant Buildroot documentation]
+(https://buildroot.org/downloads/manual/manual.html#requirement).
 
-| Directory | Description |
-| --- | --- |
-| buildroot | Upstream Buildroot source code |
-| buildroot-ipa | Ironic Python Agent image configurations for Buildroot |
-| dl | Cache directory for source code tarballs |
-| output | Output directory for builds in timestamped subdirectories |
-| ccache | Directory for storing ccache files to speed up subsequent builds |
-
-We will export variables later to help use these.
-
-## Build dependencies
-
-For a list of build dependencies, see the Buildroot documentation.
-
-https://buildroot.org/downloads/manual/manual.html#requirement
-
-### Fedora
+## Fedora
 
 Something like this should be about right.
 
@@ -94,12 +117,7 @@ Install deps for busybox menuconfig.
 
 	sudo dnf install 'perl(ExtUtils::MakeMaker)' 'perl(Thread::Queue)'
 
-Including ccache will help speed up subsequent builds and is highly
-recommended. All you have to do is install it and Buildroot will use it.
-
-	sudo dnf install ccache
-
-### Ubuntu
+## Ubuntu
 
 Something like this should be about right.
 
@@ -109,12 +127,7 @@ Install tools for downloading source.
 
 	sudo apt-get install bzr cvs git mercurial rsync subversion
 
-Including ccache will help speed up subsequent builds and is highly
-recommended. All you have to do is install it and Buildroot will use it.
-
-	sudo apt-get install ccache
-
-## Building the image
+# Building the image
 
 Buildroot makes use of environment variables and it can make our life
 easier, too.
@@ -123,22 +136,23 @@ In the next steps we're going to export the following variables.
 
 | Variable | Description | Who uses it |
 | --- | --- | --- |
-| BR2_IPA_REPO | Where this ipa-buildroot Git repo was cloned, e.g. ~/ipa-buildroot | Local |
-| BR2_UPSTREAM | Where upstream Buildroot Git submodule was cloned, e.g. ~/ipa-buildroot/buildroot | Local |
-| BR2_EXTERNAL | Our Ironic Python Agent Buildroot configs, e.g. ~/ipa-buildroot/buildroot-ipa | Buildroot |
-| BR2_CCACHE_DIR | Where Buildroot should write ccache fragments to speed up subsequent builds, e.g. ~/ipa-buildroot/ccache | Buildroot |
-| BR2_DL_DIR | Where Buildroot should cache downloaded source code tarballs, e.g. ~/ipa-buildroot/dl | Buildroot |
-| BR2_OUTPUT_DIR | Where Buildroot conducts builds and saves built images, e.g. ~/ipa-buildroot/output | Local |
+| BR2_IPA_REPO | Where this _ipa-buildroot_ Git repo was cloned, e.g. ~/ipa-buildroot | Self |
+| BR2_UPSTREAM | Where upstream Buildroot Git submodule was cloned, e.g. ~/ipa-buildroot/buildroot | Self |
+| BR2_EXTERNAL | Ironic Python Agent Buildroot configs, e.g. ~/ipa-buildroot/buildroot-ipa | Buildroot |
+| BR2_OUTPUT_DIR | Where Buildroot conducts builds and saves built images, e.g. ~/ipa-buildroot/output | Self |
 
-### Step 1
+## Step 1 - Exporting variables
 
 First, let's export the location of this cloned ipa-buildroot Git repo, as
-other variables will be relative to it. Substitute with the path to where you
-cloned this repo.
+other variables will be relative to it.
 
 _Substitute this directory as appropriate, based on where you cloned this repo._
 
 	export BR2_IPA_REPO="${HOME}/ipa-buildroot"
+
+Set the location of the upstream Buildroot code.
+
+	export BR2_UPSTREAM="${BR2_IPA_REPO}/buildroot"
 
 Let's export the BR2_EXTERNAL variable to tell Buildroot where the IPA
 specific configs are inside the cloned ipa-buildroot Git repository is so
@@ -147,86 +161,80 @@ will not include our IPA configs and won't be able to build our image.
 
 	export BR2_EXTERNAL="${BR2_IPA_REPO}/buildroot-ipa"
 
-Let's also set the location of the upstream Buildroot code, for convenience.
+## Step 2 - Preparing the output directory
 
-	export BR2_UPSTREAM="${BR2_IPA_REPO}/buildroot"
+We will utilise Buildroot's out-of-tree support and build in the existing
+ _output_ dir inside the top level of our _ipa-buildroot_ Git repository.
 
-Next, let's tell Buildroot to cache downloads, which can save time and bandwidth
-when rebuilding. This directory is ignored by Git.
-
-	export BR2_DL_DIR="${BR2_IPA_REPO}/dl"
-
-If you're using ccache, let's tell Buildroot where to write those files. This
-directory is ignored by Git.
-
-	export BR2_CCACHE_DIR="${BR2_IPA_REPO}/ccache"
-
-### Step 2
-
-We will build from an output dir utilising Buildroot's out-of-tree support.
-This directory is ignored by Git.
+Note that the _output_ directory will be ignored by Git.
 
 	export BR2_OUTPUT_DIR="${BR2_IPA_REPO}/output"
-	cd "${BR2_OUTPUT_DIR}"
 
-Or alternatively, specify a _unique_ output dir if you need to perform concurrent
+Alternatively, specify a _unique_ output dir if you need to perform concurrent
 builds.
 
-	export BR2_OUTPUT_DIR="$(mktemp -d -p ${BR2_IPA_REPO}/buildroot-output \
+	export BR2_OUTPUT_DIR="$(mktemp -d -p ${BR2_IPA_REPO}/output \
 	-t "$(date +%s)-XXXXXX")"
+
+Now you should be able to list all of the available Buildroot configs from inside
+the output directory.
+
 	cd "${BR2_OUTPUT_DIR}"
-
-Now let's list all the available Buildroot configs.
-
 	make -C "${BR2_UPSTREAM}" list-defconfigs
 
-If this worked, you should be able to see IPA configurations under
-"External configs."
+If this worked, you should see the IPA build listed under "External configs."
 
-> External configs in "Buildroot configuration for OpenStack IPA":<br>
-> openstack_ipa_defconfig - Build for openstack_ipa
+![alt text][buildroot-list-defconfigs]
 
-### Step 3
+## Step 3 - Loading the Buildroot configuration
 
-Now we can load the default IPA config.
+Now you can load the default IPA config that you saw above. Note that we specify
+the output directory (O=) and the change directory (-C) options to make use if
+out-of-tree builds.
 
 	make O="${BR2_OUTPUT_DIR}" -C "${BR2_UPSTREAM}" openstack_ipa_defconfig
 
-**Note:** From now on we do not specify the output directory (O=) and change to
-source directory (-C) options. After the first time, Buildroot will write a
+**Note:** From now on you do not need to specify the output directory (O=) and
+change to source directory (-C) options. After the first time, Buildroot will write a
 configuration file in the output directory and remember automatically in the future.
 
-### Step 4 (Optional)
+## Step 4 - Making changes to Buildroot configuration
 
-Optionally, make any Buildroot configuration changes you want.
+**Note:** This step is entirely optional.
 
-	make menuconfig
+Now that you have loaded the configuration file, you have the opportunity to
+make any changes you might need.
 
-Optionally, make any Busybox configuration changes you want (note this
-will do some downloading and extracting first).
+There are three main components you may want to configure.
 
-	make busybox-menuconfig
+* Buildroot itself
+  * System details
+  * Compiler
+  * Target packages
+    * Version of IPA
+  * Image formats
+* Busybox
+  * Packages to include
+* Linux kernel
+  * Features
+  * Hardware support
 
-Optionally, make any Linux kernel configuration changes you want (note
-this will do some downloading, extracting and building first).
+See the [Making changes](#making-changes) section below for details and examples.
 
-	make linux-menuconfig
+## Step 5 - Building the image
 
-### Step 5
+Finally, make the image!
 
-Finally, make the image! Note that you should **not** use -j option with make,
-it is set in the config and determined automatically. Specifying -j here may
-cause Buildroot components to be built out of order, causing a failure.
+**Note:** You should **not** use -j option with make, it is set in the config
+and determined automatically. Specifying -j here may cause Buildroot components
+to be built out of order, causing a failure.
 
 	make
 
-A successful build should create both a Linux kernel image and the IPA
-initramfs in the ${BR2_OUTPUT_DIR}/images directory.
+A successful build should create both a *_bzImage_* Linux kernel image and the
+IPA *_rootfs.cpio.xz_* initramfs in the ${BR2_OUTPUT_DIR}/images directory.
 
-> bzImage<br>
-> rootfs.cpio.xz
-
-### Testing the image
+# Testing the image
 
 You can test the kernel and initramfs images in QEMU.
 
@@ -240,9 +248,262 @@ You can test the kernel and initramfs images in QEMU.
 	-netdev user,id=net0 \
 	-device e1000,netdev=net0
 
-You should see a login prompt, the default user is root with no password.
+You should see a login prompt, however note that **root login is disabled by
+default**. See [Setting root password](#setting-root-password) and/or
+[Adding SSH keys](#adding-ssh-keys) below on how to enable these if you require
+them.
 
-## Saving changes
+The Python packages for IPA should have been installed and the daemon
+should be running on port 9999.
+
+Note that you may want to use different QEMU networking settings than _user_
+above if you want to access IPA on your network. If you have virt-manager, you
+can easily boot up the kernel and initramfs using its graphical interface.
+
+# Making changes
+
+This assumes you have already loaded the openstack_ipa_defconfig as per
+the [Building the image](#building-the-image) section above and are ready to
+modify it (you do not need to have built anything yet).
+
+Changes can be made directly via the various .config files, but it is better
+to use the graphical menu tools to make changes which will write to the
+.config files.
+
+Any changes that you make will be in the output directory, not in the main
+Git repositories. To save your changes, see the _Saving changes_ section
+below.
+
+Configuration files are in the following locations:
+
+| Component | Location |
+| --- | --- |
+| Buildroot | ${BR2_OUTPUT_DIR}/.config|
+| Busybox | ${BR2_OUTPUT_DIR}/build/busybox-[version]/.config|
+| Linux | ${BR2_OUTPUT_DIR}/build/linux-[version]/.config|
+
+## Making changes to Buildroot
+
+The main Buildroot configuration specifies many core components of the
+target system, such as architecture, toolchain and build options, system
+options and settings, kernel and config, packages to build, images to
+create, bootloader support and more.
+
+It is also where we will make the most common changes, such as:
+
+* Enabling and setting a password for the root account
+* Add/override any files in the target image, like SSH keys
+* Changing download and cache build directory locations
+
+To make changes, you can modify the options directly in the .config file
+and then run _make oldconfig_ or you can use the menu (recommended).
+
+	make menuconfig
+
+You should be greeted with a configuration menu.
+
+![alt text][buildroot-menuconfig]
+
+Navigate by pressing the arrow keys and select using <_Enter_> or <_Space bar_>.
+
+**Note:** You can get help for any option by navigating across to < Help > option
+and hitting <_Enter_>.
+
+The < Help > on the main screen presents the README which explains how the options
+work.
+
+![alt text][buildroot-menuconfig-readme]
+
+Hitting the forward slash (/) key will let you search for any option in
+Buildroot and go directly to it by pressing the corresponding number.
+
+In the example below, we searched for _python_ and pressing _8_ would take us
+straight to the Python target package.
+
+![alt text][buildroot-menuconfig-search]
+
+### Setting the IPA version
+
+The Ironic Python Agent and dependencies are created by the post-build.sh script.
+
+It uses pip to automatically create wheels based on the provided requirements.txt
+from the upstream OpenStack Ironic Python Agent project as well as the
+upper-constraints.txt from the OpenStack Requirements project.
+
+There are two config options in Buildroot to set the Git version of these repos
+so that you can build for multiple OpenStack releases.
+
+*TODO
+
+### Adding users
+
+Only the root user is configured, although it is disabled by default.
+
+If you need to add another user, Buildroot supports this via a file which contains
+a list of users, specified at BR2_ROOTFS_USERS_TABLES option.
+
+See their online documentation on [adding custom user accounts](https://buildroot.org/downloads/manual/manual.html#customize-users)
+if you need to make use of this.
+
+### Setting root password
+
+The default configuration **does not allow root login** and there is **no
+password configured**.
+
+To enable the root account and set a password, navigate to the
+_System configuration_ menu and hit <_Enter_>.
+
+	System configuration  --->
+
+Navigate down to the login option and enable it with <_Space bar_>.
+
+	[*] Enable root login with password
+
+This will enable a sub-option for specifying the password.
+
+	() Root password
+
+Hitting <_Enter_> on this option will open a free form text field for
+you to enter the password.
+
+#### Using a hashed password
+
+The password will be **saved in plain text** inside the .config file,
+so it is probably best to use a hash a password.
+
+Specifying sha256 hashed passwords must be prefixed with _$5$_ like so:
+  * $5$salt$Gcm6FsVtF/Qa77ZKD.iwsJlCVPY0XSMgLJL0Hnww/c1
+
+However, all instances of _$_ in the hashed password __must be doubled__, so it becomes:
+  * $$5$$salt$$Gcm6FsVtF/Qa77ZKD.iwsJlCVPY0XSMgLJL0Hnww/c1
+
+You can generate a fully compliant password like follows (note that you
+should replace _salt_ with some other string and _password_ with the
+password you want to use).
+
+	python -c 'import crypt; print crypt.crypt("password", "$5$random_salt")' \
+	|sed 's|\$|\$\$|g'
+
+Then set this in the free text password field.
+
+![alt text][buildroot-menuconfig-password]
+
+### Using filesystem overlays
+
+You can add or replace any file on the target system using an overlay. These
+files should still be owned by your user, there is no need to set change these
+to root.
+
+The IPA board already has an overlay to copy in important files such as
+systemd init scripts to start IPA. This is located at:
+
+* ${BR2_EXTERNAL}/board/openstack/ipa/rootfs-overlay/
+
+A second overlay is preconfigured (which is not tracked by Git) for users to
+add files to. It is located in the _overlay_ directory in the top level
+ipa-buildroot Git repository at:
+
+* ${BR2_IPA_REPO}/overlay/
+
+The configuration option which specifies both of these locations is
+__BR2_ROOTFS_OVERLAY__.
+
+In order to make use of the overlay, simply add files and directories to
+the overlay at ${BR2_IPA_REPO}/overlay/ and they will be copied into the
+target filesystem at build time.
+
+**Note:** The following files and directories are ignored and will **not** be
+copied into the target.
+
+* Directories like .git .svn and .hg
+* Files called .empty
+* Files ending in ~
+
+### Adding SSH keys
+
+Note that by default, the SSH server does not allow login by root. If you are
+enabling SSH keys for root, you should also provide an sshd_config which sets
+_PermitRootLogin prohibit-password_ option.
+
+The easiest way to add SSH keys is to with an overlay, see
+[Using filesystem overlays](#using-filesystem-overlays).
+
+Create the required root directory structure.
+
+	mkdir -p ${BR2_IPA_REPO}/overlay/{etc/ssh,root/.ssh}
+
+Any keys and configs for _root_ should go under:
+
+* ${BR2_IPA_REPO}/overlay/root/.ssh
+
+If you have pre-generated host keys, then place these under:
+
+* ${BR2_IPA_REPO}/overlay/etc/ssh/
+
+If you wish to override the default sshd_config then you can also do so
+by playing it at.
+
+* ${BR2_IPA_REPO}/overlay/etc/ssh/sshd_config
+
+**Note:** Permissions are very important for SSH, so the post-build.sh
+script will ensure that these are set correctly.
+
+## Making changes to Busybox
+
+The busybox config is very minimal, however you may find that you want
+to add (or remove) some of the packages that it offers.
+
+You can use a menuconfig to make any changes you want (note this
+may do some downloading and extracting first).
+
+	make busybox-menuconfig
+
+Be sure to save your changes when you exit menuconfig and see
+[Saving changes](#saving-changes) if you want to add them permanently
+to Git.
+
+## Making changes to the Linux kernel
+
+The Linux kernel was made from scratch using tiny-config and is
+deliberately very limited in the amount of hardware it supports. Having
+said that, it is also designed to support a wide range of server grade
+hardware.
+
+The idea is to add support for hardware as we encounter it, so please
+file a bug report if some essential support is missing.
+
+If you need to make any Linux kernel configuration changes, you can use
+the menuconfig (note this may do some downloading, extracting and building
+first).
+
+	make linux-menuconfig
+
+Be sure to save your changes when you exit menuconfig and see
+[Saving changes](#saving-changes) if you want to add them permanently
+to Git.
+
+# Rebuilding
+
+Buildroot makes use of stamp files to track the state of the build. These
+are located in the package build directories under ${BR2_OUTPUT_DIR}/build/.
+
+In most cases you can tweak the Buildroot configuration and then just
+re-run _make_ to get updated images.
+
+However, if you are making changes to a package which was already built,
+Buildroot will not re-build it as the stamps say it is already been done.
+
+In such a case, you can remove the stamp file (or entire package build
+directory) and try again.
+
+	rm ./build/python-2.7.13/.stamp_built
+
+You can also tell Buildroot to only build a specific package if you just want
+to test rebuilding one package at a time.
+
+	make python
+
+# Saving changes
 
 If you made changes to the Buildroot, Linux kernel or Busybox configs, you
 can save them over the top of the existing configs in the IPA buildroot repo.

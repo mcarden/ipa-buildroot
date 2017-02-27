@@ -60,6 +60,31 @@ do
 	find "${BR2_TARGET_DIR}/wheelhouse/" -type f -name ${package}* -exec rm -f {} \;
 done
 
+# Ensure any SSH keys and configs have appropriate permissions,
+# else it may fail to start and that would make life hard
+# (Commands are separated out for clarify)
+# System keys and configs
+if [[ -d "${BR2_TARGET_DIR}/etc/ssh" ]]; then
+	find "${BR2_TARGET_DIR}/etc/ssh" -type f -name ssh_config -exec chmod 0644 {} \;
+	find "${BR2_TARGET_DIR}/etc/ssh" -type f -name "*pub" -exec chmod 0644 {} \;
+	find "${BR2_TARGET_DIR}/etc/ssh" -type f -name sshd_config -exec chmod 0600 {} \;
+	find "${BR2_TARGET_DIR}/etc/ssh" -type f -name "*key" -exec chmod 0600 {} \;
+fi
+# root's keys and config
+find "${BR2_TARGET_DIR}/root" -type f -name .rhosts -exec chmod 0600 {} \;
+find "${BR2_TARGET_DIR}/root" -type f -name .shosts -exec chmod 0600 {} \;
+if [[ -d "${BR2_TARGET_DIR}/root/.ssh" ]]; then
+	# Enable root logins via ssh keys only, if we detect a public key
+	# This is for convenience, it's better to provide new sshd_config in overlay
+	if [[ -f "${BR2_TARGET_DIR}/root/.ssh/authorized_keys" ]]; then
+		sed -i 's/^#PermitRootLogin.*/PermitRootLogin\ prohibit-password/g' "${BR2_TARGET_DIR}/etc/ssh/sshd_config"
+	fi
+	# Ensure root's home directory and other SSH related files are restricted
+	chmod 0700 ${BR2_TARGET_DIR}/root
+	chmod 0700 ${BR2_TARGET_DIR}/root/.ssh
+	find "${BR2_TARGET_DIR}/root/.ssh" -type f -exec chmod 0600 {} \;
+fi
+
 ## Add any commands below to be run after the build,
 ## before both fakeroot and image creation
 
