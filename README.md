@@ -155,7 +155,7 @@ Set the location of the upstream Buildroot code.
 	export BR2_UPSTREAM="${BR2_IPA_REPO}/buildroot"
 
 Let's export the BR2_EXTERNAL variable to tell Buildroot where the IPA
-specific configs are inside the cloned ipa-buildroot Git repository is so
+specific configs are inside the cloned ipa-buildroot Git repository,  so
 that it can find our IPA specific customisations. Without this, Buildroot
 will not include our IPA configs and won't be able to build our image.
 
@@ -391,8 +391,8 @@ Then set this in the free text password field.
 ### Using filesystem overlays
 
 You can add or replace any file on the target system using an overlay. These
-files should still be owned by your user, there is no need to set change these
-to root.
+files should still be owned by your user, there is no need to change these
+to root ownerhip.
 
 The IPA board already has an overlay to copy in important files such as
 systemd init scripts to start IPA. This is located at:
